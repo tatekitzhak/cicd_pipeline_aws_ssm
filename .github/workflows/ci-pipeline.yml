@@ -6,7 +6,7 @@ name: ci-pipeline
 on:
   push:
     branches:
-      - main
+      - cicd_aws_ssm
   pull_request:
     branches:
       - main
