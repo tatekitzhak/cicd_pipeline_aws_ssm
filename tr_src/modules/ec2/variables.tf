@@ -15,7 +15,7 @@ variable "sg_id" {
 # }
 
 resource "aws_key_pair" "deployer" {
-  key_name   = "deployer-key"
+  key_name   = "deployer-key-${local.formatted_time}"
   # Note: No "~/", just the filename relative to the terraform files
   public_key = file("${path.module}/cicd_terraform_github_action.pub")
 }
