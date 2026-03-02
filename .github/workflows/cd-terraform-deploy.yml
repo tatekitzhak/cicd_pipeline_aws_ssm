@@ -124,11 +124,41 @@ jobs:
         run: |
           # 1. Wait for the instance to be "Online" in SSM
           echo "Waiting for instance to register with SSM..."
-          aws ssm wait instance-online --instance-ids "${{ env.EC2_INSTANCE_ID }}"
+
+
+          INSTANCE_ID="${{ env.EC2_INSTANCE_ID }}"
+          echo "Checking SSM Status for $INSTANCE_ID..."
+
+          # 1. Polling Loop: Wait for SSM Agent to be 'Online'
+          MAX_RETRIES=30
+          RETRY_COUNT=0
+          SSM_STATUS="Offline"
+
+          while [ "$SSM_STATUS" != "Online" ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            SSM_STATUS=$(aws ssm describe-instance-information \
+              --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+              --query "InstanceInformationList[0].PingStatus" --output text)
+
+
+          if [ "$SSM_STATUS" == "Online" ]; then
+              echo "SSM Agent is Online!"
+              break
+            fi
+
+          echo "SSM Status is '$SSM_STATUS'. Retrying in 10s... ($RETRY_COUNT/$MAX_RETRIES)"
+            sleep 10
+            RETRY_COUNT=$((RETRY_COUNT+1))
+          done
+
+          if [ "$SSM_STATUS" != "Online" ]; then
+            echo "Error: SSM Agent never came online."
+            exit 1
+          fi
           
           # 2. Add a small buffer for user_data to actually finish
           # (SSM might be online before Docker is finished installing)
           echo "Instance is online. Waiting 30s for user_data to complete..."
+          echo "SSM is ready. Waiting 30s for Docker installation to wrap up...
           sleep 30
           
           # 3. Send the command to check docker version
@@ -173,11 +203,10 @@ jobs:
         if: steps.docker_check.outcome == 'failure'
         run: terraform destroy -auto-approve
 
-      # 3. Final Status Report
       - name: Terraform Plan Status
         if: steps.docker_check.outcome == 'failure'
         run: |
-          echo "Deployment failed validation. Infrastructure has been destroyed."
+          echo "ERROR: Docker failed to install or SSM failed to connect. Infrastructure destroyed."
           exit 1
         
       #   run: |
