@@ -4,9 +4,9 @@ name: cd-terraform-deploy-aws # Setup AWS resources using Terraform and GitHub A
 # Triggers: after CI completes, or manually via "Run workflow"
 ###
 on:
-  # workflow_run:
-  #   workflows: ["ci-pipeline"]
-  #   types: [completed]
+  workflow_run:
+    workflows: ["ci-pipeline"]
+    types: [completed]
   workflow_dispatch: {}   # Allow manual run from Actions tab
 
 
@@ -106,7 +106,7 @@ jobs:
     needs: [ terraform_deploy_aws_resources ]
     runs-on: ubuntu-latest
     # if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run && github.event.workflow_run.conclusion == 'success')
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' 
     permissions:
       id-token: write
       contents: read
