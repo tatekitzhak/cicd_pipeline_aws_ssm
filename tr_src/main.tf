@@ -26,21 +26,21 @@ module "vpc" {
   vpc_cidr = var.vpc_cidr
 }
 
-# module "sg" {
-#   source = "./modules/sg"
-#   vpc_id = module.vpc.vpc_id
-# }
+module "sg" {
+  source = "./modules/sg"
+  vpc_id = module.vpc.vpc_id
+}
 
-# module "ec2" {
-#   source = "./modules/ec2"
-#   vpc_id = module.vpc.vpc_id
-#   sg_id  = module.sg.security_group_id
-# }
+module "ec2" {
+  source = "./modules/ec2"
+  vpc_id = module.vpc.vpc_id
+  sg_id  = module.sg.security_group_id
+}
 
-# output "ec2_instance_id" {
-#   description = "EC2 instance ID for CD deploy (SSM); use in workflow or secret EC2_INSTANCE_ID"
-#   value       = module.ec2.ec2_instance_id
-# }
+output "ec2_instance_id" {
+  description = "EC2 instance ID for CD deploy (SSM); use in workflow or secret EC2_INSTANCE_ID"
+  value       = module.ec2.ec2_instance_id
+}
 
 
 data "aws_caller_identity" "current" {}
