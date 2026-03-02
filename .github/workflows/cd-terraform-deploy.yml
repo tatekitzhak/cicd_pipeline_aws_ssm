@@ -115,6 +115,10 @@ jobs:
       EC2_INSTANCE_ID: ${{ needs.terraform_deploy_aws_resources.outputs.instance_id }}
 
     steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -201,8 +205,13 @@ jobs:
       #   run: sleep 120
 
       # 2. Terraform Destroy (Runs ONLY if Docker Check fails)
-      - name: Terraform Destroy on Failure
-        if: always()
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.1.7"
+          terraform_wrapper: false
+          
+      - name: Terraform Destroy
         run: terraform destroy -auto-approve
 
       # - name: Terraform Plan Status
