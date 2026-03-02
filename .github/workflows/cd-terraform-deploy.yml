@@ -158,7 +158,7 @@ jobs:
           # 2. Add a small buffer for user_data to actually finish
           # (SSM might be online before Docker is finished installing)
           echo "Instance is online. Waiting 30s for user_data to complete..."
-          echo "SSM is ready. Waiting 30s for Docker installation to wrap up..."
+          echo "SSM is ready. Waiting 30s for Docker installation is runing on EC2 Instance..."
           sleep 30
           
           # 3. Send the command to check docker version
