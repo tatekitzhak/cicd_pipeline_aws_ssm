@@ -96,6 +96,12 @@ jobs:
       #
       - name: List files in the repository (tree)
         run: tree .
+
+      - name: Sleep for 2 minute # Sleep for 2 minute (120 seconds)
+        run: sleep 120
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
   
   ##
   # --- DEPLOY JOB: Deployment started after successful CI run ---
@@ -124,6 +130,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+       
           
       # - name: Verify Docker Installation and Run Docker Check via SSM
       #   id: docker_check
@@ -205,14 +212,7 @@ jobs:
       #   run: sleep 120
 
       # 2. Terraform Destroy (Runs ONLY if Docker Check fails)
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.1.7"
-          terraform_wrapper: false
-          
-      - name: Terraform Destroy
-        run: terraform destroy -auto-approve
+     
 
       # - name: Terraform Plan Status
       #   if: steps.docker_check.outcome == 'failure'
