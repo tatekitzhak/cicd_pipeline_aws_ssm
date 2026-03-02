@@ -37,6 +37,11 @@ module "vpc" {
 #   sg_id  = module.sg.security_group_id
 # }
 
+# output "ec2_instance_id" {
+#   description = "EC2 instance ID for CD deploy (SSM); use in workflow or secret EC2_INSTANCE_ID"
+#   value       = module.ec2.ec2_instance_id
+# }
+
 
 data "aws_caller_identity" "current" {}
 
@@ -51,13 +56,6 @@ output "caller_arn" {
 output "caller_user_id" {
   value = data.aws_caller_identity.current.user_id
 }
-
-output "ec2_instance_id" {
-  description = "EC2 instance ID for CD deploy (SSM); use in workflow or secret EC2_INSTANCE_ID"
-  value       = module.ec2.ec2_instance_id
-}
-
-
 
 
 resource "null_resource" "create_file_localy" {
