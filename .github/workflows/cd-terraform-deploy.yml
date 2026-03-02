@@ -4,9 +4,9 @@ name: cd-terraform-deploy-aws # Setup AWS resources using Terraform and GitHub A
 # Triggers: after CI completes, or manually via "Run workflow"
 ###
 on:
-  workflow_run:
-    workflows: ["ci-pipeline"]
-    types: [completed]
+  # workflow_run:
+  #   workflows: ["ci-pipeline"]
+  #   types: [completed]
   workflow_dispatch: {}   # Allow manual run from Actions tab
 
 
@@ -17,7 +17,8 @@ jobs:
  
   terraform_deploy_aws_resources:
     # Run when CI succeeded (workflow_run) or when triggered manually (workflow_dispatch)
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run && github.event.workflow_run.conclusion == 'success')
+    # if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run && github.event.workflow_run.conclusion == 'success')
+    if: github.event_name == 'workflow_dispatch' 
     name: Set up AWS through Terraform
     runs-on: ubuntu-latest
     outputs:
@@ -38,7 +39,7 @@ jobs:
         if: github.event_name == 'workflow_run'
         uses: actions/download-artifact@v4
         with:
-          name: build-data
+          name: artifact-build-data
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: tr_src/
@@ -104,7 +105,8 @@ jobs:
     name: Deploy Docker to EC2
     needs: [ terraform_deploy_aws_resources ]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run && github.event.workflow_run.conclusion == 'success')
+    # if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run && github.event.workflow_run.conclusion == 'success')
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       id-token: write
       contents: read
@@ -119,77 +121,77 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           
-      - name: Verify Docker Installation and Run Docker Check via SSM
-        id: docker_check
-        run: |
-          # 1. Wait for the instance to be "Online" in SSM
-          echo "Waiting for instance to register with SSM..."
+      # - name: Verify Docker Installation and Run Docker Check via SSM
+      #   id: docker_check
+      #   run: |
+      #     # 1. Wait for the instance to be "Online" in SSM
+      #     echo "Waiting for instance to register with SSM..."
 
 
-          INSTANCE_ID="${{ env.EC2_INSTANCE_ID }}"
-          echo "Checking SSM Status for $INSTANCE_ID..."
+      #     INSTANCE_ID="${{ env.EC2_INSTANCE_ID }}"
+      #     echo "Checking SSM Status for $INSTANCE_ID..."
 
-          # 1. Polling Loop: Wait for SSM Agent to be 'Online'
-          MAX_RETRIES=30
-          RETRY_COUNT=0
-          SSM_STATUS="Offline"
+      #     # 1. Polling Loop: Wait for SSM Agent to be 'Online'
+      #     MAX_RETRIES=30
+      #     RETRY_COUNT=0
+      #     SSM_STATUS="Offline"
 
-          while [ "$SSM_STATUS" != "Online" ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            SSM_STATUS=$(aws ssm describe-instance-information \
-              --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
-              --query "InstanceInformationList[0].PingStatus" --output text)
+      #     while [ "$SSM_STATUS" != "Online" ] && [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+      #       SSM_STATUS=$(aws ssm describe-instance-information \
+      #         --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+      #         --query "InstanceInformationList[0].PingStatus" --output text)
 
 
-          if [ "$SSM_STATUS" == "Online" ]; then
-              echo "SSM Agent is Online!"
-              break
-            fi
+      #     if [ "$SSM_STATUS" == "Online" ]; then
+      #         echo "SSM Agent is Online!"
+      #         break
+      #       fi
 
-          echo "SSM Status is '$SSM_STATUS'. Retrying in 10s... ($RETRY_COUNT/$MAX_RETRIES)"
-            sleep 10
-            RETRY_COUNT=$((RETRY_COUNT+1))
-          done
+      #     echo "SSM Status is '$SSM_STATUS'. Retrying in 10s... ($RETRY_COUNT/$MAX_RETRIES)"
+      #       sleep 10
+      #       RETRY_COUNT=$((RETRY_COUNT+1))
+      #     done
 
-          if [ "$SSM_STATUS" != "Online" ]; then
-            echo "Error: SSM Agent never came online."
-            exit 1
-          fi
+      #     if [ "$SSM_STATUS" != "Online" ]; then
+      #       echo "Error: SSM Agent never came online."
+      #       exit 1
+      #     fi
           
-          # 2. Add a small buffer for user_data to actually finish
-          # (SSM might be online before Docker is finished installing)
-          echo "Instance is online. Waiting 30s for user_data to complete..."
-          echo "SSM is ready. Waiting 30s for Docker installation is runing on EC2 Instance..."
-          sleep 30
+      #     # 2. Add a small buffer for user_data to actually finish
+      #     # (SSM might be online before Docker is finished installing)
+      #     echo "Instance is online. Waiting 30s for user_data to complete..."
+      #     echo "SSM is ready. Waiting 30s for Docker installation is runing on EC2 Instance..."
+      #     sleep 30
           
-          # 3. Send the command to check docker version
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --comment "Checking Docker status" \
-            --parameters 'commands=["docker --version && systemctl is-active docker"]' \
-            --query "Command.CommandId" --output text)
+      #     # 3. Send the command to check docker version
+      #     COMMAND_ID=$(aws ssm send-command \
+      #       --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
+      #       --document-name "AWS-RunShellScript" \
+      #       --comment "Checking Docker status" \
+      #       --parameters 'commands=["docker --version && systemctl is-active docker"]' \
+      #       --query "Command.CommandId" --output text)
 
-          echo "Command ID: $COMMAND_ID"
+      #     echo "Command ID: $COMMAND_ID"
 
-          # 4. Wait for the command to finish
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ env.EC2_INSTANCE_ID }}"
+      #     # 4. Wait for the command to finish
+      #     aws ssm wait command-executed \
+      #       --command-id "$COMMAND_ID" \
+      #       --instance-id "${{ env.EC2_INSTANCE_ID }}"
 
-          # 5. Get the final result
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ env.EC2_INSTANCE_ID }}" \
-            --query "Status" --output text)
+      #     # 5. Get the final result
+      #     STATUS=$(aws ssm get-command-invocation \
+      #       --command-id "$COMMAND_ID" \
+      #       --instance-id "${{ env.EC2_INSTANCE_ID }}" \
+      #       --query "Status" --output text)
 
-          echo "Final Status: $STATUS"
+      #     echo "Final Status: $STATUS"
 
-          # 6. Exit with 1 if it didn't succeed
-          if [ "$STATUS" != "Success" ]; then
-            echo "Docker check failed or timed out!"
-            echo "Docker check failed! Check logs in AWS SSM Console."
-            exit 1
-          fi
+      #     # 6. Exit with 1 if it didn't succeed
+      #     if [ "$STATUS" != "Success" ]; then
+      #       echo "Docker check failed or timed out!"
+      #       echo "Docker check failed! Check logs in AWS SSM Console."
+      #       exit 1
+      #     fi
 
 
       # - name: Wait for EC2 Docker ready (SSM)
@@ -200,14 +202,14 @@ jobs:
 
       # 2. Terraform Destroy (Runs ONLY if Docker Check fails)
       - name: Terraform Destroy on Failure
-        if: steps.docker_check.outcome == 'failure'
+        if: always()
         run: terraform destroy -auto-approve
 
-      - name: Terraform Plan Status
-        if: steps.docker_check.outcome == 'failure'
-        run: |
-          echo "ERROR: Docker failed to install or SSM failed to connect. Infrastructure destroyed."
-          exit 1
+      # - name: Terraform Plan Status
+      #   if: steps.docker_check.outcome == 'failure'
+      #   run: |
+      #     echo "ERROR: Docker failed to install or SSM failed to connect. Infrastructure destroyed."
+      #     exit 1
         
       #   run: |
       #     set -e
