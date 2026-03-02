@@ -48,6 +48,7 @@ jobs:
   # --- Build application and produce artifact for CD ---
   build:
     name: Build
+    needs: [ terraform-validate ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -68,6 +69,7 @@ jobs:
   # --- Unit / integration tests ---
   test:
     name: Test
+    needs: [ terraform-validate, build ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -84,6 +86,7 @@ jobs:
   # --- Security scan ---
   security-scan:
     name: Security scan
+    needs: [ terraform-validate, build, test ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository

@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
           # role-session-name: GitHub-OIDC-TERRAFORM
       
@@ -80,8 +80,6 @@ jobs:
       - name: Terraform Plan Status
         if: steps.plan.outcome == 'failure'
         run: exit 1
-      - run: |
-          echo "steps.plan.outcome :${{ toJson(steps.plan) }}"
       #
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false
@@ -90,17 +88,10 @@ jobs:
         id: ec2-id
         run: echo "instance_id=$(terraform output -raw ec2_instance_id)" >> $GITHUB_OUTPUT
 
-      # Sleep for 1 minute (60 seconds)
-      - name: Sleep for 1 minute
-        run: sleep 120
-
-      - name: Terraform Destroy
-        run: terraform destroy -auto-approve
-
       - run:  |
           pwd
           ls  -ltra
-      - run: echo "Terraform status steps :${{ toJson(steps) }}"
+      - run: echo "AWS EC2_INSTANCE_ID :${{ toJson(steps.ec2-id) }}"
       #
       - name: List files in the repository (tree)
         run: tree .
@@ -120,17 +111,56 @@ jobs:
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       EC2_INSTANCE_ID: ${{ needs.terraform_deploy_aws_resources.outputs.instance_id }}
-      
+
     steps:
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Verify Docker Installation and Run Docker Check via SSM
+        id: ssm_check
+        run: |
+          # 1. Send the command to check docker version
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Checking Docker status" \
+            --parameters 'commands=["docker --version && systemctl is-active docker"]' \
+            --query "Command.CommandId" --output text)
+
+          echo "Command ID: $COMMAND_ID"
+
+          # 2. Wait for the command to finish
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ env.EC2_INSTANCE_ID }}"
+
+          # 3. Get the final result
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "${{ env.EC2_INSTANCE_ID }}" \
+            --query "Status" --output text)
+
+          echo "Final Status: $STATUS"
+
+          # 4. Exit with 1 if it didn't succeed
+          if [ "$STATUS" != "Success" ]; then
+            echo "Docker check failed or timed out!"
+            exit 1
+          fi
+
 
       - name: Wait for EC2 Docker ready (SSM)
         
         run: echo "Waiting for Docker on instance $EC2_INSTANCE_ID..."
+       # Sleep for 1 minute (60 seconds)
+      - name: Sleep for 1 minute
+        run: sleep 120
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
         
       #   run: |
       #     set -e
